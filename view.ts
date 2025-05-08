@@ -146,14 +146,12 @@ export class QuizView extends ItemView {
 			const mostRecentLeaf = this.app.workspace.getMostRecentLeaf();
 			if (mostRecentLeaf && mostRecentLeaf.view instanceof MarkdownView) {
 				content = (<MarkdownView>mostRecentLeaf.view).editor.getSelection();
-				console.log("Selected text:", content);
 			}
 		}
 		if (!content) {
 			const activeFile = this.app.workspace.getActiveFile();
 			if (activeFile) {
 				content = await this.app.vault.read(activeFile);
-				console.log("File text:", content);
 			}
 		}
 
@@ -162,10 +160,17 @@ export class QuizView extends ItemView {
 			return;
 		}
 
+		content = content.replace(/!\[\[\S+\]\]/g, "![image]") // replace image links with a placeholder
+			.replace(/\[\[[^\[\]]+\|([^\[\]]+)\]\]/g, (match, capture) => capture) // replace aliased internal links with the text inside the pipe
+			.replace(/\[\[([^\[\]]+)\]\]/g, (match, capture) => capture) // replace unaliased internal links with the text inside the brackets
+			.replace(/\[([^\[\]]+)\]\(\S+\)/g, (match, capture) => capture) // replace external links with the text inside the brackets
+			.replace(/%%[^%]+%%/g, ''); // remove comments
+		console.log(content);
+
 		const prompt = `
 			${content}
 			
-			Create a 10-question multiple choice quiz based on the following content. Format the output as JSON:
+			Create a 10-question multiple choice quiz based on the preceding content. Format the output as JSON:
 			{
 				"questions": [
 					{
