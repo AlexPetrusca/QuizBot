@@ -7,7 +7,7 @@
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
-		"emit": "npm build && cp"
+		"emit": "npm run build && cp {main.js,styles.css,manifest.json} /Users/apetrusca/misc/Alpine-Vault/.obsidian/plugins/obsidian-quizbot"
 	},
 	"keywords": [],
 	"author": "",

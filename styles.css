@@ -1,8 +1,51 @@
-/*
+.quiz-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.form-choice {
+	display: flex;
+	align-items: flex-start;
+	border-radius: 5px;
+}
 
-If your plugin does not need CSS, delete this file.
+.form-choice.correct-choice {
+	background: green;
+}
 
-*/
+.form-choice.incorrect-choice {
+	background: darkred;
+}
+
+.form-radio {
+	margin-top: 8px;
+}
+
+.form-radio-label {
+	padding: 4px 8px;
+}
+
+.submit-button {
+	margin-top: 2em;
+}
+
+.result-container {
+	margin-top: 2em;
+	padding: 0 1em;
+	border: 1px solid gray;
+	border-radius: 5px;
+	display: none;
+}
+
+.result-container.result-visible {
+	display: block;
+}
+
+.correct-text {
+	color: #00bb00;
+}
+
+.incorrect-text {
+	color: red;
+}
