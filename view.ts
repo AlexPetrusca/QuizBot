@@ -201,7 +201,10 @@ export class QuizView extends ItemView {
 		// parse json generation out of the response
 		const start = result.response.indexOf("{");
 		const end = result.response.lastIndexOf("}");
-		return JSON.parse(result.response.substring(start, end + 1));
+		const jsonText = result.response.substring(start, end + 1);
+		console.log(result.response);
+		console.log(jsonText);
+		return JSON.parse(jsonText);
 	}
 
 	async onClose() {
