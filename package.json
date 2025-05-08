@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-sample-plugin",
+	"name": "obsidian-quizbot",
 	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"description": "Generates and renders quizzes from notes using Ollama.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",

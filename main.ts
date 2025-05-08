@@ -30,7 +30,7 @@ export default class QuizBotPlugin extends Plugin {
 
 		// Add a simple command that can be triggered anywhere
 		this.addCommand({
-			id: 'open-sample-modal-simple',
+			id: 'open-quizbot-panel',
 			name: 'Open QuizBot Panel',
 			callback: () => {
 				this.activateView();
@@ -38,7 +38,7 @@ export default class QuizBotPlugin extends Plugin {
 		});
 
 		// Add a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+		this.addSettingTab(new QuizSettingTab(this.app, this));
 	}
 
 	onunload() {
@@ -68,7 +68,7 @@ export default class QuizBotPlugin extends Plugin {
 	}
 }
 
-class SampleSettingTab extends PluginSettingTab {
+class QuizSettingTab extends PluginSettingTab {
 	plugin: QuizBotPlugin;
 
 	constructor(app: App, plugin: QuizBotPlugin) {
