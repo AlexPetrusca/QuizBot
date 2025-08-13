@@ -1,5 +1,5 @@
 import path from "path";
-import {WorkspaceLeaf, Plugin, FileSystemAdapter} from 'obsidian';
+import {WorkspaceLeaf, Plugin, FileSystemAdapter, Notice} from 'obsidian';
 import {ChildProcessWithoutNullStreams, spawn} from "child_process";
 import { QUIZ_VIEW_TYPE, QuizView } from "src/view";
 import {DEFAULT_QUIZBOT_SETTINGS, QuizBotSettings, QuizSettingTab} from "src/settings";
@@ -47,7 +47,7 @@ export default class QuizBotPlugin extends Plugin {
 	startChroma() {
 		const fsAdapter = <FileSystemAdapter> this.app.vault.adapter;
 		const dataPath = path.join(fsAdapter.getBasePath(), ".chroma");
-		this.chroma = spawn(this.settings.chromaPath, ["run", "--path", dataPath], {
+		this.chroma = spawn(this.settings.chromaPath, ["run", "--path", dataPath, "--port", "58080"], {
 			env: {
 				...process.env, // inherit current environment
 				PATH: process.env.PATH + `:${path.dirname(this.settings.nodePath)}`
@@ -60,7 +60,12 @@ export default class QuizBotPlugin extends Plugin {
 			console.error(`Chroma error: ${data}`);
 		});
 		this.chroma.on("close", (code) => {
-			console.log(`Chroma exited with code ${code}`);
+			if (code !== 0) {
+				console.error(`Chroma exited with code ${code}`);
+				new Notice(`Chroma failed to start. Please check the console for more details.`);
+			} else {
+				console.log(`Shutting down Chroma...`);
+			}
 		});
 	}
 
