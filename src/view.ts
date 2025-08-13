@@ -1,5 +1,5 @@
 import {ItemView, MarkdownView, Notice, WorkspaceLeaf} from "obsidian";
-import QuizBotPlugin from "./main";
+import QuizBotPlugin from "main";
 
 export const QUIZ_VIEW_TYPE = "quiz-view";
 

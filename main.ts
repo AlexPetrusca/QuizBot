@@ -1,5 +1,5 @@
 import { App, WorkspaceLeaf, Plugin, PluginSettingTab, Setting } from 'obsidian';
-import { QUIZ_VIEW_TYPE, QuizView } from "./view";
+import { QUIZ_VIEW_TYPE, QuizView } from "src/view";
 
 // Remember to rename these classes and interfaces!
 
