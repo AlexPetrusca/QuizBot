@@ -4,11 +4,11 @@ import { QUIZ_VIEW_TYPE, QuizView } from "./view";
 // Remember to rename these classes and interfaces!
 
 interface QuizBotSettings {
-	mySetting: string;
+	ollamaModel: string;
 }
 
 const DEFAULT_SETTINGS: QuizBotSettings = {
-	mySetting: 'default'
+	ollamaModel: 'gpt-oss:latest'
 }
 
 export default class QuizBotPlugin extends Plugin {
@@ -20,7 +20,7 @@ export default class QuizBotPlugin extends Plugin {
 		// Register a view to render the quiz
 		this.registerView(
 			QUIZ_VIEW_TYPE,
-			(leaf: WorkspaceLeaf) => new QuizView(leaf)
+			(leaf: WorkspaceLeaf) => new QuizView(leaf, this)
 		);
 
 		// Create icon in the left ribbon
@@ -82,13 +82,13 @@ class QuizSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
+			.setName('Ollama Model')
+			.setDesc('The full qualified name of the Ollama model to use.')
 			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
+				.setPlaceholder(DEFAULT_SETTINGS.ollamaModel)
+				.setValue(this.plugin.settings.ollamaModel)
 				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
+					this.plugin.settings.ollamaModel = value;
 					await this.plugin.saveSettings();
 				}));
 	}

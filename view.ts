@@ -1,10 +1,14 @@
 import {ItemView, MarkdownView, Notice, WorkspaceLeaf} from "obsidian";
+import QuizBotPlugin from "./main";
 
 export const QUIZ_VIEW_TYPE = "quiz-view";
 
 export class QuizView extends ItemView {
-	constructor(leaf: WorkspaceLeaf) {
+	plugin: QuizBotPlugin;
+
+	constructor(leaf: WorkspaceLeaf, plugin: QuizBotPlugin) {
 		super(leaf);
+		this.plugin = plugin;
 	}
 
 	getViewType(): string {
@@ -167,7 +171,31 @@ export class QuizView extends ItemView {
 			.replace(/%%[^%]+%%/g, ''); // remove comments
 		console.log(content);
 
-		const prompt = `
+		const prompt = this.getPrompt(content);
+		const response = await fetch("http://localhost:11434/api/generate", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				model: this.plugin.settings.ollamaModel,
+				prompt: prompt,
+				stream: false,
+			}),
+		});
+		const result = await response.json();
+
+		// parse json generation out of the response
+		const text = result.response;
+		const outText = text.substring(text.match("</think>").index + 8)
+		const start = outText.indexOf("{");
+		const end = outText.lastIndexOf("}");
+		const jsonText = outText.substring(start, end + 1);
+		console.log(outText);
+		console.log(jsonText);
+		return JSON.parse(jsonText);
+	}
+
+	private getPrompt(content: string) {
+		return `
 			${content}
 			
 			Create a 10-question multiple choice quiz based on the preceding content. Format the output as JSON:
@@ -187,24 +215,6 @@ export class QuizView extends ItemView {
 				]
 			}
 		`;
-		const response = await fetch("http://localhost:11434/api/generate", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				model: "qwen3:30b-a3b",
-				prompt: prompt,
-				stream: false,
-			}),
-		});
-		const result = await response.json();
-
-		// parse json generation out of the response
-		const start = result.response.indexOf("{");
-		const end = result.response.lastIndexOf("}");
-		const jsonText = result.response.substring(start, end + 1);
-		console.log(result.response);
-		console.log(jsonText);
-		return JSON.parse(jsonText);
 	}
 
 	async onClose() {
