@@ -1,18 +1,12 @@
-import { App, WorkspaceLeaf, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import path from "path";
+import {WorkspaceLeaf, Plugin, FileSystemAdapter} from 'obsidian';
+import {ChildProcessWithoutNullStreams, spawn} from "child_process";
 import { QUIZ_VIEW_TYPE, QuizView } from "src/view";
-
-// Remember to rename these classes and interfaces!
-
-interface QuizBotSettings {
-	ollamaModel: string;
-}
-
-const DEFAULT_SETTINGS: QuizBotSettings = {
-	ollamaModel: 'gpt-oss:latest'
-}
+import {DEFAULT_QUIZBOT_SETTINGS, QuizBotSettings, QuizSettingTab} from "src/settings";
 
 export default class QuizBotPlugin extends Plugin {
 	settings: QuizBotSettings;
+	chroma: ChildProcessWithoutNullStreams;
 
 	async onload() {
 		await this.loadSettings()
@@ -39,14 +33,39 @@ export default class QuizBotPlugin extends Plugin {
 
 		// Add a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new QuizSettingTab(this.app, this));
+
+		this.startChroma(); // testing - todo: remove me
 	}
 
 	onunload() {
 		this.app.workspace.detachLeavesOfType(QUIZ_VIEW_TYPE);
+		if (this.chroma) {
+			this.chroma.kill();
+		}
+	}
+
+	startChroma() {
+		const fsAdapter = <FileSystemAdapter> this.app.vault.adapter;
+		const dataPath = path.join(fsAdapter.getBasePath(), ".chroma");
+		this.chroma = spawn(this.settings.chromaPath, ["run", "--path", dataPath], {
+			env: {
+				...process.env, // inherit current environment
+				PATH: process.env.PATH + `:${path.dirname(this.settings.nodePath)}`
+			}
+		});
+		this.chroma.stdout.on("data", (data) => {
+			console.log(`Chroma: ${data}`);
+		});
+		this.chroma.stderr.on("data", (data) => {
+			console.error(`Chroma error: ${data}`);
+		});
+		this.chroma.on("close", (code) => {
+			console.log(`Chroma exited with code ${code}`);
+		});
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings = Object.assign({}, DEFAULT_QUIZBOT_SETTINGS, await this.loadData());
 	}
 
 	async saveSettings() {
@@ -65,31 +84,5 @@ export default class QuizBotPlugin extends Plugin {
 		this.app.workspace.revealLeaf(
 			this.app.workspace.getLeavesOfType(QUIZ_VIEW_TYPE)[0]
 		);
-	}
-}
-
-class QuizSettingTab extends PluginSettingTab {
-	plugin: QuizBotPlugin;
-
-	constructor(app: App, plugin: QuizBotPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const {containerEl} = this;
-
-		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName('Ollama Model')
-			.setDesc('The full qualified name of the Ollama model to use.')
-			.addText(text => text
-				.setPlaceholder(DEFAULT_SETTINGS.ollamaModel)
-				.setValue(this.plugin.settings.ollamaModel)
-				.onChange(async (value) => {
-					this.plugin.settings.ollamaModel = value;
-					await this.plugin.saveSettings();
-				}));
 	}
 }
