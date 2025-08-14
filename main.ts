@@ -7,6 +7,7 @@ import {DEFAULT_QUIZBOT_SETTINGS, QuizBotSettings, QuizSettingTab} from "src/set
 export default class QuizBotPlugin extends Plugin {
 	settings: QuizBotSettings;
 	chroma: ChildProcessWithoutNullStreams;
+	ollama: ChildProcessWithoutNullStreams;
 
 	async onload() {
 		await this.loadSettings()
@@ -35,6 +36,7 @@ export default class QuizBotPlugin extends Plugin {
 		this.addSettingTab(new QuizSettingTab(this.app, this));
 
 		this.startChroma(); // testing - todo: remove me
+		this.startOllama(); // testing - todo: remove me
 	}
 
 	onunload() {
@@ -42,6 +44,32 @@ export default class QuizBotPlugin extends Plugin {
 		if (this.chroma) {
 			this.chroma.kill();
 		}
+		if (this.ollama) {
+			this.ollama.kill();
+		}
+	}
+
+	startOllama() {
+		this.ollama = spawn(this.settings.ollamaPath, ["serve"], {
+			env: {
+				...process.env, // inherit current environment
+				OLLAMA_HOST: "localhost:58081",
+			}
+		});
+		this.ollama.stdout.on("data", (data) => {
+			console.log(`Ollama: ${data}`);
+		});
+		this.ollama.stderr.on("data", (data) => {
+			console.log(`Ollama: ${data}`);
+		});
+		this.ollama.on("close", (code) => {
+			if (code === null || code === 0) {
+				console.log(`Shutting down Ollama...`);
+			} else {
+				console.error(`Ollama exited with code ${code}`);
+				new Notice(`Ollama failed to start. Please check the console for more details.`);
+			}
+		});
 	}
 
 	startChroma() {
@@ -60,11 +88,11 @@ export default class QuizBotPlugin extends Plugin {
 			console.error(`Chroma error: ${data}`);
 		});
 		this.chroma.on("close", (code) => {
-			if (code !== 0) {
+			if (code === null || code === 0) {
+				console.log(`Shutting down Chroma...`);
+			} else {
 				console.error(`Chroma exited with code ${code}`);
 				new Notice(`Chroma failed to start. Please check the console for more details.`);
-			} else {
-				console.log(`Shutting down Chroma...`);
 			}
 		});
 	}

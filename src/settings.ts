@@ -5,12 +5,14 @@ export interface QuizBotSettings {
 	ollamaModel: string;
 	chromaPath: string;
 	nodePath: string;
+	ollamaPath: string;
 }
 
 export const DEFAULT_QUIZBOT_SETTINGS: QuizBotSettings = {
 	ollamaModel: 'gpt-oss:latest',
 	chromaPath: '/opt/homebrew/bin/chroma',
 	nodePath: '/opt/homebrew/bin/node',
+	ollamaPath: '/opt/homebrew/bin/ollama',
 }
 
 export class QuizSettingTab extends PluginSettingTab {
@@ -59,6 +61,15 @@ export class QuizSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
-		// todo: add ollama path setting + start ollama automatically
+		new Setting(containerEl)
+			.setName('Ollama Path')
+			.setDesc('Path to your Ollama executable: run `which ollama`.')
+			.addText(text => text
+				.setPlaceholder(DEFAULT_QUIZBOT_SETTINGS.ollamaPath)
+				.setValue(this.plugin.settings.ollamaPath)
+				.onChange(async (value) => {
+					this.plugin.settings.ollamaPath = value;
+					await this.plugin.saveSettings();
+				}));
 	}
 }
