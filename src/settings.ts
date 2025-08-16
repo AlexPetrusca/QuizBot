@@ -76,7 +76,7 @@ export class QuizSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Structured Output')
-			.setDesc('Enforce structured output for quiz generation using JSON Schema.')
+			.setDesc('Enforce structured output using JSON Schema.')
 			.addToggle(toggle =>
 				toggle
 					.setValue(this.plugin.settings.structuredOutput)
