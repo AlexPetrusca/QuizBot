@@ -1,8 +1,9 @@
 import path from "path";
-import {WorkspaceLeaf, Plugin, FileSystemAdapter, Notice} from 'obsidian';
-import {ChildProcessWithoutNullStreams, spawn} from "child_process";
+import { WorkspaceLeaf, Plugin, FileSystemAdapter, Notice } from 'obsidian';
+import { ChildProcessWithoutNullStreams, spawn } from "child_process";
 import { QUIZ_VIEW_TYPE, QuizView } from "src/view";
-import {DEFAULT_QUIZBOT_SETTINGS, QuizBotSettings, QuizSettingTab} from "src/settings";
+import { DEFAULT_QUIZBOT_SETTINGS, QuizBotSettings, QuizSettingTab } from "src/settings";
+import { patchFetch } from "src/fetch";
 
 export default class QuizBotPlugin extends Plugin {
 	settings: QuizBotSettings;
@@ -10,6 +11,7 @@ export default class QuizBotPlugin extends Plugin {
 	ollama: ChildProcessWithoutNullStreams;
 
 	async onload() {
+		await patchFetch();
 		await this.loadSettings()
 
 		// Register a view to render the quiz
@@ -73,12 +75,14 @@ export default class QuizBotPlugin extends Plugin {
 	}
 
 	startChroma() {
-		const fsAdapter = <FileSystemAdapter> this.app.vault.adapter;
+		const fsAdapter = <FileSystemAdapter>this.app.vault.adapter;
 		const dataPath = path.join(fsAdapter.getBasePath(), ".chroma");
 		this.chroma = spawn(this.settings.chromaPath, ["run", "--path", dataPath, "--port", "58080"], {
 			env: {
 				...process.env, // inherit current environment
-				PATH: process.env.PATH + `:${path.dirname(this.settings.nodePath)}`
+				PATH: process.env.PATH + `:${path.dirname(this.settings.nodePath)}`,
+				CHROMA_SERVER_CORS_ALLOW_ORIGINS: '["*"]',
+				CHROMA_SERVER_CORS_ALLOW_METHODS: 'GET,POST,OPTIONS'
 			}
 		});
 		this.chroma.stdout.on("data", (data) => {

@@ -1,5 +1,7 @@
-import {ItemView, MarkdownView, Notice, WorkspaceLeaf} from "obsidian";
+import { ItemView, MarkdownView, Notice, WorkspaceLeaf } from "obsidian";
 import QuizBotPlugin from "main";
+import { OllamaEmbeddingFunction } from "@chroma-core/ollama";
+import { ChromaClient } from "chromadb";
 
 export const QUIZ_VIEW_TYPE = "quiz-view";
 
@@ -29,12 +31,37 @@ export class QuizView extends ItemView {
 
 		const quizHeader = container.createEl("div", { cls: "quiz-header" });
 		quizHeader.createEl("h1", { text: "QuizBot" });
-		const regenerateButton = quizHeader.createEl("button", { text: "Regenerate" });
+		const controlsContainer = quizHeader.createEl("div", { cls: "controls-container" });
 
-		const quizContainer = container.createEl("div", { cls: "quiz-container" });
-		this.generateQuiz(quizContainer);
+		const indexButton = controlsContainer.createEl("button", { text: "Index" });
+		this.registerDomEvent(indexButton, 'click', () => {
+			this.indexVault();
+		});
+
+		const regenerateButton = controlsContainer.createEl("button", { text: "Generate" });
 		this.registerDomEvent(regenerateButton, 'click', () => {
 			this.generateQuiz(quizContainer);
+		});
+
+		const quizContainer = container.createEl("div", { cls: "quiz-container" });
+	}
+
+	async indexVault() {
+		const chromaClient = new ChromaClient({
+			host: "localhost",
+			port: 58080
+		});
+		const ollama_embed = new OllamaEmbeddingFunction({
+			url: "localhost:58081",
+			model: "nomic-embed-text",
+		})
+		const collection_id = {
+			name: "alpine-vault",
+			embeddingFunction: ollama_embed,
+			embedding_dim: 768,
+		};
+		chromaClient.getOrCreateCollection(collection_id).then((collection) => {
+			console.log(`Chroma collection created: ${collection.id}`);
 		});
 	}
 
@@ -172,7 +199,7 @@ export class QuizView extends ItemView {
 		console.log(content);
 
 		const prompt = this.getPrompt(content);
-		const response = await fetch("http://localhost:11434/api/generate", {
+		const response = await fetch("http://localhost:58081/api/generate", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
@@ -184,12 +211,14 @@ export class QuizView extends ItemView {
 		const result = await response.json();
 
 		// parse json generation out of the response
-		const text = result.response;
-		const outText = text.substring(text.match("</think>").index + 8)
-		const start = outText.indexOf("{");
-		const end = outText.lastIndexOf("}");
-		const jsonText = outText.substring(start, end + 1);
-		console.log(outText);
+		let text = result.response;
+		if (text.includes("<think>")) {
+			text = text.substring(text.match("</think>").index + 8)
+		}
+		const start = text.indexOf("{");
+		const end = text.lastIndexOf("}");
+		const jsonText = text.substring(start, end + 1);
+		console.log(text);
 		console.log(jsonText);
 		return JSON.parse(jsonText);
 	}

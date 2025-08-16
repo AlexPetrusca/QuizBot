@@ -4,6 +4,11 @@
 	justify-content: space-between;
 }
 
+.controls-container {
+	display: flex;
+	gap: 5px;
+}
+
 .form-choice {
 	display: flex;
 	align-items: flex-start;
