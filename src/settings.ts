@@ -1,4 +1,4 @@
-import {App, PluginSettingTab, Setting} from "obsidian";
+import { App, PluginSettingTab, Setting } from "obsidian";
 import QuizBotPlugin from "main";
 
 export interface QuizBotSettings {
@@ -6,6 +6,7 @@ export interface QuizBotSettings {
 	chromaPath: string;
 	nodePath: string;
 	ollamaPath: string;
+	structuredOutput: boolean;
 }
 
 export const DEFAULT_QUIZBOT_SETTINGS: QuizBotSettings = {
@@ -13,6 +14,7 @@ export const DEFAULT_QUIZBOT_SETTINGS: QuizBotSettings = {
 	chromaPath: '/opt/homebrew/bin/chroma',
 	nodePath: '/opt/homebrew/bin/node',
 	ollamaPath: '/opt/homebrew/bin/ollama',
+	structuredOutput: true,
 }
 
 export class QuizSettingTab extends PluginSettingTab {
@@ -24,13 +26,13 @@ export class QuizSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
-		const {containerEl} = this;
+		const { containerEl } = this;
 
 		containerEl.empty();
 
 		new Setting(containerEl)
 			.setName('Ollama Model')
-			.setDesc('The full qualified name of the Ollama model to use.')
+			.setDesc('Full qualified name of the Ollama model to use.')
 			.addText(text => text
 				.setPlaceholder(DEFAULT_QUIZBOT_SETTINGS.ollamaModel)
 				.setValue(this.plugin.settings.ollamaModel)
@@ -71,5 +73,17 @@ export class QuizSettingTab extends PluginSettingTab {
 					this.plugin.settings.ollamaPath = value;
 					await this.plugin.saveSettings();
 				}));
+
+		new Setting(containerEl)
+			.setName('Structured Output')
+			.setDesc('Enforce structured output for quiz generation using JSON Schema.')
+			.addToggle(toggle =>
+				toggle
+					.setValue(this.plugin.settings.structuredOutput)
+					.onChange(async (value) => {
+						this.plugin.settings.structuredOutput = value;
+						await this.plugin.saveSettings();
+					})
+			);
 	}
 }

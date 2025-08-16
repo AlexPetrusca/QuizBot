@@ -3,6 +3,7 @@ import QuizBotPlugin from "main";
 import { OllamaEmbeddingFunction } from "@chroma-core/ollama";
 import { ChromaClient } from "chromadb";
 import { Ollama } from "ollama";
+import { OllamaGenerateRequest } from "./util/types";
 
 export const QUIZ_VIEW_TYPE = "quiz-view";
 
@@ -173,23 +174,54 @@ export class QuizView extends ItemView {
 	}
 
 	async generateQuizJson() {
+		const content = await this.getPageContent();
+		if (content === null) return;
+
+		const ollama = new Ollama({ host: "localhost:58081" })
+		const request: OllamaGenerateRequest = {
+			model: this.plugin.settings.ollamaModel,
+			prompt: this.getStandalonePrompt(content),
+			format: "json",
+			stream: false,
+		};
+		if (this.plugin.settings.ollamaModel.includes("gpt-oss")) {
+			delete request.format; // gpt-oss does not support structured output
+		} else if (this.plugin.settings.structuredOutput) {
+			request.prompt = this.getJsonSchemaPrompt(content);
+			request.format = this.getJsonSchema();
+		}
+		const response = await ollama.generate(request)
+
+		const text = response.response;
+		const start = text.indexOf("{");
+		const end = text.lastIndexOf("}");
+		const jsonText = text.substring(start, end + 1);
+		console.log(text);
+		console.log(jsonText);
+		return JSON.parse(jsonText);
+	}
+
+	async getPageContent(): Promise<string | null> {
 		let content = "";
+
+		// Check if there is a selection in the active editor
 		if (!content) {
 			const mostRecentLeaf = this.app.workspace.getMostRecentLeaf();
 			if (mostRecentLeaf && mostRecentLeaf.view instanceof MarkdownView) {
 				content = (<MarkdownView>mostRecentLeaf.view).editor.getSelection();
 			}
 		}
+		// If no selection, read the content of the active file
 		if (!content) {
 			const activeFile = this.app.workspace.getActiveFile();
 			if (activeFile) {
 				content = await this.app.vault.read(activeFile);
 			}
 		}
-
+		// If still no content, show a notice and return null
 		if (!content) {
 			new Notice("QuizBot: Error - No active file selection.");
-			return;
+			return null;
 		}
 
 		content = content.replace(/!\[\[\S+\]\]/g, "![image]") // replace image links with a placeholder
@@ -199,21 +231,7 @@ export class QuizView extends ItemView {
 			.replace(/%%[^%]+%%/g, ''); // remove comments
 		console.log(content);
 
-		const ollama = new Ollama({ host: 'localhost:58081' })
-		const response = await ollama.generate({
-			model: this.plugin.settings.ollamaModel,
-			prompt: this.getPromptForJsonSchema(content),
-			format: this.getJsonSchema(),
-			stream: false
-		})
-
-		const text = response.response;
-		const start = text.indexOf("{");
-		const end = text.lastIndexOf("}");
-		const jsonText = text.substring(start, end + 1);
-		console.log(text);
-		console.log(jsonText);
-		return JSON.parse(jsonText);
+		return content;
 	}
 
 	private getJsonSchema() {
@@ -251,7 +269,7 @@ export class QuizView extends ItemView {
 		}
 	}
 
-	private getPromptForJsonSchema(content: string) {
+	private getJsonSchemaPrompt(content: string) {
 		return `
 			${content}
 			
@@ -262,7 +280,7 @@ export class QuizView extends ItemView {
 		`;
 	}
 
-	private getPrompt(content: string) {
+	private getStandalonePrompt(content: string) {
 		return `
 			${content}
 			
