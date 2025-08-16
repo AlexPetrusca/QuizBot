@@ -203,10 +203,10 @@ export class QuizView extends ItemView {
 		const response = await ollama.generate({
 			model: this.plugin.settings.ollamaModel,
 			prompt: this.getPrompt(content),
+			// format: "json",
 			stream: false
 		})
 
-		// parse json generation out of the response
 		const text = response.response;
 		const start = text.indexOf("{");
 		const end = text.lastIndexOf("}");
@@ -220,7 +220,12 @@ export class QuizView extends ItemView {
 		return `
 			${content}
 			
-			Create a 10-question multiple choice quiz based on the preceding content. Format the output as JSON:
+			Create a 10-question multiple choice quiz based on the preceding content.
+			Make sure there are exactly 10 questions, each with 4 choices.
+			Each question should have one correct answer and three distractors.
+			Make sure the questions are clear and concise, and that the choices are plausible.
+			Do not include any explanations or additional text.
+			Format the output as JSON:
 			{
 				"questions": [
 					{
