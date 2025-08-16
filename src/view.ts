@@ -202,8 +202,8 @@ export class QuizView extends ItemView {
 		const ollama = new Ollama({ host: 'localhost:58081' })
 		const response = await ollama.generate({
 			model: this.plugin.settings.ollamaModel,
-			prompt: this.getPrompt(content),
-			// format: "json",
+			prompt: this.getPromptForJsonSchema(content),
+			format: this.getJsonSchema(),
 			stream: false
 		})
 
@@ -214,6 +214,52 @@ export class QuizView extends ItemView {
 		console.log(text);
 		console.log(jsonText);
 		return JSON.parse(jsonText);
+	}
+
+	private getJsonSchema() {
+		return {
+			"type": "object",
+			"properties": {
+				"questions": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"text": { "type": "string" },
+							"choices": {
+								"type": "object",
+								"properties": {
+									"1": { "type": "string" },
+									"2": { "type": "string" },
+									"3": { "type": "string" },
+									"4": { "type": "string" }
+								},
+								"required": ["1", "2", "3", "4"]
+							},
+							"answer": {
+								"type": "string",
+								"enum": ["1", "2", "3", "4"]
+							}
+						},
+						"required": ["text", "choices", "answer"]
+					},
+					"minItems": 10,
+					"maxItems": 10
+				}
+			},
+			"required": ["questions"]
+		}
+	}
+
+	private getPromptForJsonSchema(content: string) {
+		return `
+			${content}
+			
+			Create a multiple choice quiz based on the preceding content.
+			Each question should have one correct answer and three distractors.
+			Make sure the questions are clear and concise, and that the choices are plausible.
+			Do not include any explanations or additional text.
+		`;
 	}
 
 	private getPrompt(content: string) {
