@@ -3,7 +3,7 @@ import { WorkspaceLeaf, Plugin, FileSystemAdapter, Notice } from 'obsidian';
 import { ChildProcessWithoutNullStreams, spawn } from "child_process";
 import { QUIZ_VIEW_TYPE, QuizView } from "src/view";
 import { DEFAULT_QUIZBOT_SETTINGS, QuizBotSettings, QuizSettingTab } from "src/settings";
-import { patchFetch } from "src/fetch";
+import { patchFetch } from "src/util/fetch";
 
 export default class QuizBotPlugin extends Plugin {
 	settings: QuizBotSettings;
