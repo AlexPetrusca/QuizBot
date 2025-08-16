@@ -2,6 +2,7 @@ import { ItemView, MarkdownView, Notice, WorkspaceLeaf } from "obsidian";
 import QuizBotPlugin from "main";
 import { OllamaEmbeddingFunction } from "@chroma-core/ollama";
 import { ChromaClient } from "chromadb";
+import { Ollama } from "ollama";
 
 export const QUIZ_VIEW_TYPE = "quiz-view";
 
@@ -198,23 +199,15 @@ export class QuizView extends ItemView {
 			.replace(/%%[^%]+%%/g, ''); // remove comments
 		console.log(content);
 
-		const prompt = this.getPrompt(content);
-		const response = await fetch("http://localhost:58081/api/generate", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				model: this.plugin.settings.ollamaModel,
-				prompt: prompt,
-				stream: false,
-			}),
-		});
-		const result = await response.json();
+		const ollama = new Ollama({ host: 'localhost:58081' })
+		const response = await ollama.generate({
+			model: this.plugin.settings.ollamaModel,
+			prompt: this.getPrompt(content),
+			stream: false
+		})
 
 		// parse json generation out of the response
-		let text = result.response;
-		if (text.includes("<think>")) {
-			text = text.substring(text.match("</think>").index + 8)
-		}
+		const text = response.response;
 		const start = text.indexOf("{");
 		const end = text.lastIndexOf("}");
 		const jsonText = text.substring(start, end + 1);
