@@ -65,14 +65,21 @@ export class QuizView extends ItemView {
 			embedding_dim: 768,
 		};
 		const alpineCollection = await chromaClient.getOrCreateCollection(collectionId);
-		await alpineCollection.delete({}); // Clear the collection before indexing
 
-		const files = await getMarkdownFiles(getVaultPath());
-		const documents = await getChunksFromFiles(files);
+		// await alpineCollection.delete({}); // Clear the collection before indexing
+		//
+		// const files = await getMarkdownFiles(getVaultPath());
+		// const documents = await getChunksFromFiles(files);
+		// batchAddChunks(alpineCollection, documents, 2000);
+		//
+		// console.log(documents);
 
-		batchAddChunks(alpineCollection, documents, 2000);
-
-		console.log(documents);
+		const queryResults = await alpineCollection.query({
+			queryTexts: ["What was Aashiq's birthday party like for me?"],
+			nResults: 5,
+			include: ["documents", "metadatas", "distances"]
+		});
+		console.log(queryResults);
 	}
 
 	async generateQuiz(container: Element) {
