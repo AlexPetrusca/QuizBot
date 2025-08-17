@@ -1,11 +1,9 @@
 import { ItemView, MarkdownView, Notice, WorkspaceLeaf } from "obsidian";
 import QuizBotPlugin from "main";
 import { OllamaEmbeddingFunction } from "@chroma-core/ollama";
-import { ChromaClient, Metadata } from "chromadb";
+import { ChromaClient } from "chromadb";
 import { Ollama } from "ollama";
 import { OllamaGenerateRequest } from "src/util/types";
-import { getMarkdownFiles, getVaultPath } from "src/util/obsidian";
-import { batchAddChunks, getChunksFromFiles } from "./util/chroma";
 
 export const QUIZ_VIEW_TYPE = "quiz-view";
 
