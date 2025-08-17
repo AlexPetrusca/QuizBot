@@ -1,9 +1,11 @@
 import { ItemView, MarkdownView, Notice, WorkspaceLeaf } from "obsidian";
 import QuizBotPlugin from "main";
 import { OllamaEmbeddingFunction } from "@chroma-core/ollama";
-import { ChromaClient } from "chromadb";
+import { ChromaClient, Metadata } from "chromadb";
 import { Ollama } from "ollama";
-import { OllamaGenerateRequest } from "./util/types";
+import { OllamaGenerateRequest } from "src/util/types";
+import { getMarkdownFiles, getVaultPath } from "src/util/obsidian";
+import { batchAddChunks, getChunksFromFiles } from "./util/chroma";
 
 export const QUIZ_VIEW_TYPE = "quiz-view";
 
@@ -53,18 +55,24 @@ export class QuizView extends ItemView {
 			host: "localhost",
 			port: 58080
 		});
-		const ollama_embed = new OllamaEmbeddingFunction({
+		const ollamaEmbed = new OllamaEmbeddingFunction({
 			url: "localhost:58081",
 			model: "nomic-embed-text",
 		})
-		const collection_id = {
+		const collectionId = {
 			name: "alpine-vault",
-			embeddingFunction: ollama_embed,
+			embeddingFunction: ollamaEmbed,
 			embedding_dim: 768,
 		};
-		chromaClient.getOrCreateCollection(collection_id).then((collection) => {
-			console.log(`Chroma collection created: ${collection.id}`);
-		});
+		const alpineCollection = await chromaClient.getOrCreateCollection(collectionId);
+		await alpineCollection.delete({}); // Clear the collection before indexing
+
+		const files = await getMarkdownFiles(getVaultPath());
+		const documents = await getChunksFromFiles(files);
+
+		batchAddChunks(alpineCollection, documents, 2000);
+
+		console.log(documents);
 	}
 
 	async generateQuiz(container: Element) {
