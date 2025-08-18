@@ -3,8 +3,10 @@ import QuizBotPlugin from "main";
 import { OllamaEmbeddingFunction } from "@chroma-core/ollama";
 import { ChromaClient } from "chromadb";
 import { Ollama } from "ollama";
-import { OllamaGenerateRequest } from "src/util/types";
-import { getEditorContent, getEditorSelection } from "./util/obsidian";
+import { OllamaChatRequest, OllamaGenerateRequest } from "src/util/types";
+import { getEditorContent, getEditorSelection, getMarkdownFiles, getVaultPath } from "./util/obsidian";
+import { batchAddChunks, getChunksFromFiles, getCollection } from "./util/chroma";
+import { latexMarkdownToHTML } from "./util/markdown";
 
 export const QUIZ_VIEW_TYPE = "quiz-view";
 
@@ -33,6 +35,18 @@ export class QuizView extends ItemView {
 		container.empty();
 
 		const quizHeader = container.createEl("div", { cls: "quiz-header" });
+		const quizContainer = container.createEl("div", { cls: "quiz-container" });
+		const markdownContainer = container.createEl("div", { cls: "markdown-container" });
+		const promptInput = container.createEl("textarea", { cls: "prompt-input" });
+		this.registerDomEvent(promptInput, 'keydown', async (e) => {
+			if (!e.shiftKey && e.key === "Enter") {
+				e.preventDefault();
+				const rawResponse = await this.generateLLMResponse(promptInput.value);
+				const parsedResponse = await latexMarkdownToHTML(rawResponse);
+				markdownContainer.innerHTML = parsedResponse;
+			}
+		});
+
 		quizHeader.createEl("h1", { text: "QuizBot" });
 		const controlsContainer = quizHeader.createEl("div", { cls: "controls-container" });
 
@@ -45,33 +59,10 @@ export class QuizView extends ItemView {
 		this.registerDomEvent(regenerateButton, 'click', () => {
 			this.generateQuiz(quizContainer);
 		});
-
-		const quizContainer = container.createEl("div", { cls: "quiz-container" });
 	}
 
-	async indexVault() {
-		const chromaClient = new ChromaClient({
-			host: "localhost",
-			port: 58080
-		});
-		const ollamaEmbed = new OllamaEmbeddingFunction({
-			url: "localhost:58081",
-			model: "nomic-embed-text",
-		})
-		const collectionId = {
-			name: "alpine-vault",
-			embeddingFunction: ollamaEmbed,
-			embedding_dim: 768,
-		};
-		const alpineCollection = await chromaClient.getOrCreateCollection(collectionId);
-
-		// await alpineCollection.delete({}); // Clear the collection before indexing
-		//
-		// const files = await getMarkdownFiles(getVaultPath());
-		// const documents = await getChunksFromFiles(files);
-		// batchAddChunks(alpineCollection, documents, 2000);
-		//
-		// console.log(documents);
+	async generateLLMResponse(prompt: string): Promise<string> {
+		const alpineCollection = await getCollection("alpine-vault");
 
 		const queryResults = await alpineCollection.query({
 			queryTexts: ["What was Aashiq's birthday party like for me?"],
@@ -79,6 +70,29 @@ export class QuizView extends ItemView {
 			include: ["documents", "metadatas", "distances"]
 		});
 		console.log(queryResults);
+
+		const ollama = new Ollama({ host: "localhost:58081" })
+		const request: OllamaChatRequest = {
+			model: this.plugin.settings.ollamaModel,
+			messages: [
+				{ role: "user", content: prompt },
+			],
+			stream: false,
+		};
+		const chatResponse = await ollama.chat(request);
+		console.log(chatResponse);
+		return chatResponse.message.content;
+	}
+
+	async indexVault() {
+		const alpineCollection = await getCollection("alpine-vault");
+
+		await alpineCollection.delete({}); // Clear the collection before indexing
+
+		const files = await getMarkdownFiles(getVaultPath());
+		const documents = await getChunksFromFiles(files);
+		console.log(documents);
+		await batchAddChunks(alpineCollection, documents, 2000);
 	}
 
 	async generateQuiz(container: Element) {
