@@ -4,6 +4,7 @@ import { OllamaEmbeddingFunction } from "@chroma-core/ollama";
 import { ChromaClient } from "chromadb";
 import { Ollama } from "ollama";
 import { OllamaGenerateRequest } from "src/util/types";
+import { getEditorContent, getEditorSelection } from "./util/obsidian";
 
 export const QUIZ_VIEW_TYPE = "quiz-view";
 
@@ -187,7 +188,7 @@ export class QuizView extends ItemView {
 	}
 
 	async generateQuizJson() {
-		const content = await this.getPageContent();
+		const content = await this.getSanitizedContent();
 		if (content === null) return;
 
 		const ollama = new Ollama({ host: "localhost:58081" })
@@ -214,24 +215,8 @@ export class QuizView extends ItemView {
 		return JSON.parse(jsonText);
 	}
 
-	async getPageContent(): Promise<string | null> {
-		let content = "";
-
-		// Check if there is a selection in the active editor
-		if (!content) {
-			const mostRecentLeaf = this.app.workspace.getMostRecentLeaf();
-			if (mostRecentLeaf && mostRecentLeaf.view instanceof MarkdownView) {
-				content = (<MarkdownView>mostRecentLeaf.view).editor.getSelection();
-			}
-		}
-		// If no selection, read the content of the active file
-		if (!content) {
-			const activeFile = this.app.workspace.getActiveFile();
-			if (activeFile) {
-				content = await this.app.vault.read(activeFile);
-			}
-		}
-		// If still no content, show a notice and return null
+	async getSanitizedContent(): Promise<string | null> {
+		let content = await getEditorSelection() || await getEditorContent();
 		if (!content) {
 			new Notice("QuizBot: Error - No active file selection.");
 			return null;

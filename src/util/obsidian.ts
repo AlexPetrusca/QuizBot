@@ -1,4 +1,4 @@
-import { FileSystemAdapter } from "obsidian";
+import { FileSystemAdapter, MarkdownView } from "obsidian";
 import * as fs from "fs/promises";
 import path from "path";
 
@@ -24,4 +24,21 @@ export async function getMarkdownFiles(dir: string): Promise<string[]> {
 		})
 	);
 	return files.flat();
+}
+
+export async function getEditorSelection(): Promise<string | null> {
+	const mostRecentLeaf = this.app.workspace.getMostRecentLeaf();
+	if (mostRecentLeaf && mostRecentLeaf.view instanceof MarkdownView) {
+		const view = mostRecentLeaf.view as MarkdownView;
+		return view.editor.getSelection();
+	}
+	return null;
+}
+
+export async function getEditorContent(): Promise<string | null> {
+	const activeFile = this.app.workspace.getActiveFile();
+	if (activeFile) {
+		return await this.app.vault.read(activeFile);
+	}
+	return null;
 }
