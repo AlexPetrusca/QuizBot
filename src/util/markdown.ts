@@ -13,15 +13,13 @@ export async function latexMarkdownToHTML(text: string): Promise<string> {
 	AssistiveMmlHandler(RegisterHTMLHandler(adaptor));
 
 	const tex = new TeX({ packages: AllPackages });
-	const chtml = new CHTML();
 	const svg = new SVG();
-	const htmlDoc = mathjax.document("", { InputJax: tex, OutputJax: svg });
+	const htmlDoc = mathjax.document("", { InputJax: tex, OutputJax: svg, assistiveMml: true });
 
 	function renderMath(latex: string, display = false) {
 		const node = htmlDoc.convert(latex, { display: display });
 		return adaptor.outerHTML(node);
 	}
-
 	console.log(text)
 
 	const preprocessedMd = text
