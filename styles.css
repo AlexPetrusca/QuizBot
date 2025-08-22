@@ -11,6 +11,41 @@
 
 .markdown-container {
 	width: 100%;
+	line-height: 1.5;
+
+	table {
+		width: 100%;
+		border-collapse: collapse;
+
+		&, th, td {
+			border: 1px solid #545454;
+		}
+
+		th, td {
+			padding: 4px 8px;
+		}
+
+		th {
+			text-align: left;
+		}
+	}
+
+	ol, ul {
+		padding-left: 2em;
+
+		li {
+			padding: 0.075em 0
+		}
+	}
+
+	blockquote {
+		border-inline-start: 2px solid rgb(138, 92, 245);
+		padding-left: 1.5em;
+	}
+
+	.math-block svg {
+		width: 100%;
+	}
 }
 
 .prompt-input {
