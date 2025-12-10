@@ -49,11 +49,41 @@ export async function batchAddChunks(collection: Collection, documents: Chunk[],
 	}
 }
 
-export async function getCollection(collectionName: string): Promise<Collection> {
+export async function getOrCreateCollection(collectionName: string): Promise<Collection> {
 	const chromaClient = new ChromaClient({
 		host: "localhost",
 		port: 58080
 	});
+	const ollamaEmbed = new OllamaEmbeddingFunction({
+		url: "localhost:58081",
+		model: "nomic-embed-text",
+	})
+	const collectionId = {
+		name: collectionName,
+		embeddingFunction: ollamaEmbed,
+		embedding_dim: 768,
+	};
+	return await chromaClient.getOrCreateCollection(collectionId);
+}
+
+export async function deleteCollection(collectionName: string): Promise<void> {
+	const chromaClient = new ChromaClient({
+		host: "localhost",
+		port: 58080
+	});
+	await chromaClient.deleteCollection({ name: collectionName });
+}
+
+export async function recreateCollection(collectionName: string): Promise<Collection> {
+	const chromaClient = new ChromaClient({
+		host: "localhost",
+		port: 58080
+	});
+
+	// delete
+	await chromaClient.deleteCollection({ name: collectionName });
+
+	// create
 	const ollamaEmbed = new OllamaEmbeddingFunction({
 		url: "localhost:58081",
 		model: "nomic-embed-text",

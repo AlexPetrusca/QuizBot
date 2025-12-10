@@ -1,11 +1,15 @@
-import { ItemView, MarkdownView, Notice, WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
 import QuizBotPlugin from "main";
-import { OllamaEmbeddingFunction } from "@chroma-core/ollama";
-import { ChromaClient } from "chromadb";
 import { Ollama } from "ollama";
 import { OllamaChatRequest, OllamaGenerateRequest } from "src/util/types";
 import { getEditorContent, getEditorSelection, getMarkdownFiles, getVaultPath } from "./util/obsidian";
-import { batchAddChunks, getChunksFromFiles, getCollection } from "./util/chroma";
+import {
+	batchAddChunks,
+	recreateCollection,
+	deleteCollection,
+	getChunksFromFiles,
+	getOrCreateCollection
+} from "./util/chroma";
 import { latexMarkdownToHTML } from "./util/markdown";
 
 export const QUIZ_VIEW_TYPE = "quiz-view";
@@ -35,15 +39,13 @@ export class QuizView extends ItemView {
 		container.empty();
 
 		const quizHeader = container.createEl("div", { cls: "quiz-header" });
-		const quizContainer = container.createEl("div", { cls: "quiz-container" });
+		// const quizContainer = container.createEl("div", { cls: "quiz-container" });
 		const markdownContainer = container.createEl("div", { cls: "markdown-container" });
 		const promptInput = container.createEl("textarea", { cls: "prompt-input" });
 		this.registerDomEvent(promptInput, 'keydown', async (e) => {
 			if (!e.shiftKey && e.key === "Enter") {
 				e.preventDefault();
-				const rawResponse = await this.generateLLMResponse(promptInput.value);
-				const parsedResponse = await latexMarkdownToHTML(rawResponse);
-				markdownContainer.innerHTML = parsedResponse;
+				await this.generateRagResponse(promptInput.value, markdownContainer);
 			}
 		});
 
@@ -55,22 +57,44 @@ export class QuizView extends ItemView {
 			this.indexVault();
 		});
 
-		const regenerateButton = controlsContainer.createEl("button", { text: "Generate" });
+		const regenerateButton = controlsContainer.createEl("button", { text: "Generate Quiz" });
 		this.registerDomEvent(regenerateButton, 'click', () => {
-			this.generateQuiz(quizContainer);
+			this.generateQuiz(markdownContainer);
 		});
 	}
 
-	async generateLLMResponse(prompt: string): Promise<string> {
-		const alpineCollection = await getCollection("alpine-vault");
+	async generateRagResponse(prompt: string, container: HTMLElement) {
+		container.empty();
 
+		const alpineCollection = await getOrCreateCollection("alpine-vault");
 		const queryResults = await alpineCollection.query({
-			queryTexts: ["What was Aashiq's birthday party like for me?"],
+			queryTexts: [prompt],
 			nResults: 5,
 			include: ["documents", "metadatas", "distances"]
 		});
 		console.log(queryResults);
 
+		const ollama = new Ollama({ host: "localhost:58081" })
+		const request: OllamaGenerateRequest = {
+			model: this.plugin.settings.ollamaModel,
+			prompt: this.getJsonSchemaPromptRouter(prompt),
+			format: this.getJsonSchemaRouter(),
+			stream: false,
+		};
+		const response = await ollama.generate(request)
+		const route = response.response.slice(1, -1); // remove quotes
+		console.log("ROUTE: ", route);
+
+		const rags = queryResults.documents[0].join("\n");
+		if (route === "quiz") {
+			await this.generateQuiz(container, rags);
+		} else if (route === "generate") {
+			const rawResponse = await this.generateLLMResponse(prompt + "\n\n" + rags);
+			container.innerHTML = await latexMarkdownToHTML(rawResponse);
+		}
+	}
+
+	async generateLLMResponse(prompt: string): Promise<string> {
 		const ollama = new Ollama({ host: "localhost:58081" })
 		const request: OllamaChatRequest = {
 			model: this.plugin.settings.ollamaModel,
@@ -85,20 +109,18 @@ export class QuizView extends ItemView {
 	}
 
 	async indexVault() {
-		const alpineCollection = await getCollection("alpine-vault");
-
-		await alpineCollection.delete({}); // Clear the collection before indexing
+		const alpineCollection = await recreateCollection("alpine-vault");
 
 		const files = await getMarkdownFiles(getVaultPath());
 		const documents = await getChunksFromFiles(files);
 		console.log(documents);
-		await batchAddChunks(alpineCollection, documents, 2000);
+		await batchAddChunks(alpineCollection, documents, 400);
 	}
 
-	async generateQuiz(container: Element) {
+	async generateQuiz(container: Element, content?: string) {
 		container.empty();
 		container.createEl("p", { text: "Generating quiz..." });
-		const quiz = await this.generateQuizJson();
+		const quiz = await this.generateQuizJson(content);
 		container.empty();
 
 		for (let i = 1; i <= quiz.questions.length; i++) {
@@ -201,22 +223,26 @@ export class QuizView extends ItemView {
 		});
 	}
 
-	async generateQuizJson() {
-		const content = await this.getSanitizedContent();
-		if (content === null) return;
+	private async generateQuizJson(content?: string) {
+		if (!content) {
+			const pageContent = await this.getSanitizedContent();
+			if (pageContent !== null) {
+				content = pageContent;
+			} else {
+				return;
+			}
+		}
 
 		const ollama = new Ollama({ host: "localhost:58081" })
 		const request: OllamaGenerateRequest = {
 			model: this.plugin.settings.ollamaModel,
-			prompt: this.getStandalonePrompt(content),
+			prompt: this.getStandalonePromptMain(content),
 			format: "json",
 			stream: false,
 		};
-		if (this.plugin.settings.ollamaModel.includes("gpt-oss")) {
-			delete request.format; // gpt-oss does not support structured output
-		} else if (this.plugin.settings.structuredOutput) {
-			request.prompt = this.getJsonSchemaPrompt(content);
-			request.format = this.getJsonSchema();
+		if (this.plugin.settings.structuredOutput) {
+			request.prompt = this.getJsonSchemaPromptMain(content);
+			request.format = this.getJsonSchemaMain();
 		}
 		const response = await ollama.generate(request)
 
@@ -229,7 +255,7 @@ export class QuizView extends ItemView {
 		return JSON.parse(jsonText);
 	}
 
-	async getSanitizedContent(): Promise<string | null> {
+	private async getSanitizedContent(): Promise<string | null> {
 		let content = await getEditorSelection() || await getEditorContent();
 		if (!content) {
 			new Notice("QuizBot: Error - No active file selection.");
@@ -246,7 +272,26 @@ export class QuizView extends ItemView {
 		return content;
 	}
 
-	private getJsonSchema() {
+	private getJsonSchemaRouter() {
+		return {
+			"type": "string",
+			"enum": ["generate", "quiz"]
+		}
+	}
+
+	private getJsonSchemaPromptRouter(content: string) {
+		return `
+			${content}
+			
+			For the preceding prompt, determine whether to output "generate" or "quiz".
+				- Output "quiz" if the prompt is asking to generate a multiple choice quiz.
+				- Output "generate" if the prompt is not asking to generate a quiz.
+			
+			Do not include any explanations or additional text.
+		`;
+	}
+
+	private getJsonSchemaMain() {
 		return {
 			"type": "object",
 			"properties": {
@@ -281,7 +326,7 @@ export class QuizView extends ItemView {
 		}
 	}
 
-	private getJsonSchemaPrompt(content: string) {
+	private getJsonSchemaPromptMain(content: string) {
 		return `
 			${content}
 			
@@ -292,7 +337,7 @@ export class QuizView extends ItemView {
 		`;
 	}
 
-	private getStandalonePrompt(content: string) {
+	private getStandalonePromptMain(content: string) {
 		return `
 			${content}
 			
