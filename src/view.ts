@@ -38,14 +38,18 @@ export class QuizView extends ItemView {
 		const container = this.containerEl.children[1];
 		container.empty();
 
-		const quizHeader = container.createEl("div", { cls: "quiz-header" });
-		// const quizContainer = container.createEl("div", { cls: "quiz-container" });
-		const markdownContainer = container.createEl("div", { cls: "markdown-container" });
-		const promptInput = container.createEl("textarea", { cls: "prompt-input" });
+		const mainContainer = container.createEl("div", {cls: "main-container"});
+		const topContainer = mainContainer.createEl("div", {cls: "top-container"});
+		const middleContainer = mainContainer.createEl("div", {cls: "middle-container"});
+		const bottomContainer = mainContainer.createEl("div", {cls: "bottom-container"});
+
+		const quizHeader = topContainer.createEl("div", { cls: "quiz-header" });
+		const outputBody = middleContainer.createEl("div", { cls: "output-body" });
+		const promptInput = bottomContainer.createEl("textarea", { cls: "prompt-input" });
 		this.registerDomEvent(promptInput, 'keydown', async (e) => {
 			if (!e.shiftKey && e.key === "Enter") {
 				e.preventDefault();
-				await this.generateRagResponse(promptInput.value, markdownContainer);
+				await this.generateRagResponse(promptInput.value, outputBody);
 			}
 		});
 
@@ -59,12 +63,13 @@ export class QuizView extends ItemView {
 
 		const regenerateButton = controlsContainer.createEl("button", { text: "Generate Quiz" });
 		this.registerDomEvent(regenerateButton, 'click', () => {
-			this.generateQuiz(markdownContainer);
+			this.generateQuiz(outputBody);
 		});
 	}
 
 	async generateRagResponse(prompt: string, container: HTMLElement) {
 		container.empty();
+		container.createEl("p", { text: "Thinking..." });
 
 		const alpineCollection = await getOrCreateCollection("alpine-vault");
 		const queryResults = await alpineCollection.query({
@@ -74,6 +79,12 @@ export class QuizView extends ItemView {
 		});
 		console.log(queryResults);
 
+		const uris = new Set<string>();
+		for (const metadata of queryResults.metadatas[0]) {
+			uris.add(<string>(metadata?.uri));
+		}
+		console.log(uris);
+
 		const ollama = new Ollama({ host: "localhost:58081" })
 		const request: OllamaGenerateRequest = {
 			model: this.plugin.settings.ollamaModel,
@@ -82,30 +93,32 @@ export class QuizView extends ItemView {
 			stream: false,
 		};
 		const response = await ollama.generate(request)
-		const route = response.response.slice(1, -1); // remove quotes
+		const route = response.response.replace(/"/g, "").trim(); // remove quotes
 		console.log("ROUTE: ", route);
 
 		const rags = queryResults.documents[0].join("\n");
 		if (route === "quiz") {
+			container.empty();
+			container.createEl("p", { text: "Generating quiz..." });
 			await this.generateQuiz(container, rags);
 		} else if (route === "generate") {
-			const rawResponse = await this.generateLLMResponse(prompt + "\n\n" + rags);
+			container.empty();
+			container.createEl("p", { text: "Generating response..." });
+			const rawResponse = await this.generateLLMResponse(prompt, rags);
 			container.innerHTML = await latexMarkdownToHTML(rawResponse);
 		}
 	}
 
-	async generateLLMResponse(prompt: string): Promise<string> {
+	async generateLLMResponse(prompt: string, rags: string): Promise<string> {
 		const ollama = new Ollama({ host: "localhost:58081" })
-		const request: OllamaChatRequest = {
+		const request: OllamaGenerateRequest = {
 			model: this.plugin.settings.ollamaModel,
-			messages: [
-				{ role: "user", content: prompt },
-			],
+			prompt: this.getPromptGenerate(prompt, rags),
 			stream: false,
 		};
-		const chatResponse = await ollama.chat(request);
+		const chatResponse = await ollama.generate(request);
 		console.log(chatResponse);
-		return chatResponse.message.content;
+		return chatResponse.response;
 	}
 
 	async indexVault() {
@@ -272,6 +285,21 @@ export class QuizView extends ItemView {
 		return content;
 	}
 
+	private getPromptGenerate(content: string, rags: string) {
+		return `
+			${content}
+			
+			Additional Information:
+			${rags}
+			
+			You can use your own knowledge in addition to the additional information to respond.
+			Only use additional information that relates directly to the provided prompt in your response.
+			If the information is nonsensical, ignore it.
+			Don't mention the fact that you are using additional information in your response.
+			As far as the user is concerned, you have never seen the additional information. 			
+		`;
+	}
+
 	private getJsonSchemaRouter() {
 		return {
 			"type": "string",
@@ -334,6 +362,10 @@ export class QuizView extends ItemView {
 			Each question should have one correct answer and three distractors.
 			Make sure the questions are clear and concise, and that the choices are plausible.
 			Do not include any explanations or additional text.
+			
+			You can use your own knowledge in addition to the additional information.
+			Don't mention the fact that you are using additional information in your response.
+			As far as the user is concerned, you have never seen the additional information. 
 		`;
 	}
 
