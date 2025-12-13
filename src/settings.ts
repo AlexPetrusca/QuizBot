@@ -7,6 +7,8 @@ export interface QuizBotSettings {
 	nodePath: string;
 	ollamaPath: string;
 	structuredOutput: boolean;
+	questionCount: number;
+	choiceCount: number;
 }
 
 export const DEFAULT_QUIZBOT_SETTINGS: QuizBotSettings = {
@@ -15,6 +17,8 @@ export const DEFAULT_QUIZBOT_SETTINGS: QuizBotSettings = {
 	nodePath: '/opt/homebrew/bin/node',
 	ollamaPath: '/opt/homebrew/bin/ollama',
 	structuredOutput: true,
+	questionCount: 10,
+	choiceCount: 4,
 }
 
 export class QuizSettingTab extends PluginSettingTab {
@@ -84,6 +88,38 @@ export class QuizSettingTab extends PluginSettingTab {
 						this.plugin.settings.structuredOutput = value;
 						await this.plugin.saveSettings();
 					})
+			);
+
+		new Setting(containerEl)
+			.setName('Question Count')
+			.setDesc('How many questions a generated quiz has')
+			.addText(number =>
+				number
+					.setValue(this.plugin.settings.questionCount.toString())
+					.onChange(async (value) => {
+						const numberValue = parseInt(value);
+						if (!isNaN(numberValue)) {
+							this.plugin.settings.questionCount = numberValue;
+							await this.plugin.saveSettings();
+						}
+					})
+					.inputEl.setAttribute('type', 'number')
+			);
+
+		new Setting(containerEl)
+			.setName('Choice Count')
+			.setDesc('How many choices there are to choose from for each question')
+			.addText(number =>
+				number
+					.setValue(this.plugin.settings.choiceCount.toString())
+					.onChange(async (value) => {
+						const numberValue = parseInt(value);
+						if (!isNaN(numberValue)) {
+							this.plugin.settings.choiceCount = numberValue;
+							await this.plugin.saveSettings();
+						}
+					})
+					.inputEl.setAttribute('type', 'number')
 			);
 	}
 }

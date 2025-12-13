@@ -320,6 +320,16 @@ export class QuizView extends ItemView {
 	}
 
 	private getJsonSchemaMain() {
+		const questionCount = this.plugin.settings.questionCount;
+		const choiceCount = this.plugin.settings.choiceCount;
+
+		const choicesPropertiesSchema: any = {};
+		const choicesEnumSchema = [];
+		for (let i = 1; i <= choiceCount; i++) {
+			choicesPropertiesSchema[`${i}`] = { "type": "string" };
+			choicesEnumSchema.push(`${i}`)
+		}
+
 		return {
 			"type": "object",
 			"properties": {
@@ -331,23 +341,18 @@ export class QuizView extends ItemView {
 							"text": { "type": "string" },
 							"choices": {
 								"type": "object",
-								"properties": {
-									"1": { "type": "string" },
-									"2": { "type": "string" },
-									"3": { "type": "string" },
-									"4": { "type": "string" }
-								},
-								"required": ["1", "2", "3", "4"]
+								"properties": choicesPropertiesSchema,
+								"required": choicesEnumSchema
 							},
 							"answer": {
 								"type": "string",
-								"enum": ["1", "2", "3", "4"]
+								"enum": choicesEnumSchema
 							}
 						},
 						"required": ["text", "choices", "answer"]
 					},
-					"minItems": 10,
-					"maxItems": 10
+					"minItems": questionCount,
+					"maxItems": questionCount
 				}
 			},
 			"required": ["questions"]
@@ -359,7 +364,7 @@ export class QuizView extends ItemView {
 			${content}
 			
 			Create a multiple choice quiz based on the preceding content.
-			Each question should have one correct answer and three distractors.
+			Each question should have one correct answer and the rest should be distractors.
 			Make sure the questions are clear and concise, and that the choices are plausible.
 			Do not include any explanations or additional text.
 			
