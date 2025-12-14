@@ -1,8 +1,8 @@
-import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
 import QuizBotPlugin from "main";
 import { Ollama } from "ollama";
 import { OllamaGenerateRequest } from "src/util/types";
-import { getEditorContent, getEditorSelection, getMarkdownFiles, getVaultPath } from "./util/obsidian";
+import { getEditorContent, getEditorSelection, getMarkdownFiles, getSelectedFilesContent, getVaultPath } from "./util/obsidian";
 import { batchAddChunks, recreateCollection, getChunksFromFiles, getOrCreateCollection } from "./util/chroma";
 import { latexMarkdownToHTML } from "./util/markdown";
 
@@ -32,10 +32,10 @@ export class QuizView extends ItemView {
 		const container = this.containerEl.children[1];
 		container.empty();
 
-		const mainContainer = container.createEl("div", {cls: "main-container"});
-		const topContainer = mainContainer.createEl("div", {cls: "top-container"});
-		const middleContainer = mainContainer.createEl("div", {cls: "middle-container"});
-		const bottomContainer = mainContainer.createEl("div", {cls: "bottom-container"});
+		const mainContainer = container.createEl("div", { cls: "main-container" });
+		const topContainer = mainContainer.createEl("div", { cls: "top-container" });
+		const middleContainer = mainContainer.createEl("div", { cls: "middle-container" });
+		const bottomContainer = mainContainer.createEl("div", { cls: "bottom-container" });
 
 		const quizHeader = topContainer.createEl("div", { cls: "quiz-header" });
 		const outputBody = middleContainer.createEl("div", { cls: "output-body" });
@@ -125,6 +125,10 @@ export class QuizView extends ItemView {
 	}
 
 	async generateQuiz(container: Element, content?: string) {
+		if (!content) {
+			content = await this.fetchContentForQuiz();
+		}
+
 		container.empty();
 		container.createEl("p", { text: "Generating quiz..." });
 		const quiz = await this.generateQuizJson(content);
@@ -230,16 +234,31 @@ export class QuizView extends ItemView {
 		});
 	}
 
-	private async generateQuizJson(content?: string) {
-		if (!content) {
-			const pageContent = await this.getSanitizedContent();
-			if (pageContent !== null) {
-				content = pageContent;
+	private async fetchContentForQuiz(): Promise<string> {
+		let content = null;
+
+		// try navbar file selections
+		const selectedFileContents = await getSelectedFilesContent();
+		if (selectedFileContents !== null) {
+			content = this.sanitizeContent(selectedFileContents.join("\n\n\n\n\n"));
+			console.log("Using Navbar File Selections...\n\n", content);
+		} else {
+			// try editor content
+			const editorContent = await getEditorSelection() || await getEditorContent();
+			if (editorContent !== null) {
+				content = this.sanitizeContent(editorContent);
+				console.log("Using Editor Content...\n\n ", content);
 			} else {
-				return;
+				// give up & error out
+				new Notice("QuizBot: Error - No active selected file/s.");
+				throw new Error("QuizBot: Error - No active selected file/s.");
 			}
 		}
 
+		return content;
+	}
+
+	private async generateQuizJson(content: string) {
 		const ollama = new Ollama({ host: "localhost:58081" })
 		const request: OllamaGenerateRequest = {
 			model: this.plugin.settings.ollamaModel,
@@ -262,21 +281,12 @@ export class QuizView extends ItemView {
 		return JSON.parse(jsonText);
 	}
 
-	private async getSanitizedContent(): Promise<string | null> {
-		let content = await getEditorSelection() || await getEditorContent();
-		if (!content) {
-			new Notice("QuizBot: Error - No active file selection.");
-			return null;
-		}
-
-		content = content.replace(/!\[\[\S+\]\]/g, "![image]") // replace image links with a placeholder
+	private sanitizeContent(content: string): string {
+		return content.replace(/!\[\[\S+\]\]/g, "![image]") // replace image links with a placeholder
 			.replace(/\[\[[^\[\]]+\|([^\[\]]+)\]\]/g, (match, capture) => capture) // replace aliased internal links with the text inside the pipe
 			.replace(/\[\[([^\[\]]+)\]\]/g, (match, capture) => capture) // replace unaliased internal links with the text inside the brackets
 			.replace(/\[([^\[\]]+)\]\(\S+\)/g, (match, capture) => capture) // replace external links with the text inside the brackets
 			.replace(/%%[^%]+%%/g, ''); // remove comments
-		console.log(content);
-
-		return content;
 	}
 
 	private getPromptGenerate(content: string, rags: string) {
