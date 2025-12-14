@@ -1,9 +1,15 @@
-import { ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
 import QuizBotPlugin from "main";
 import { Ollama } from "ollama";
 import { OllamaGenerateRequest } from "src/util/types";
-import { getEditorContent, getEditorSelection, getMarkdownFiles, getSelectedFilesContent, getVaultPath } from "./util/obsidian";
-import { batchAddChunks, recreateCollection, getChunksFromFiles, queryCollection } from "./util/chroma";
+import {
+	getEditorContent,
+	getEditorSelection,
+	getMarkdownFiles,
+	getSelectedFilesContent,
+	getVaultPath
+} from "./util/obsidian";
+import { batchAddChunks, getChunksFromFiles, queryCollection, recreateCollection } from "./util/chroma";
 import { latexMarkdownToHTML } from "./util/markdown";
 
 export const QUIZ_VIEW_TYPE = "quiz-view";
@@ -70,8 +76,11 @@ export class QuizView extends ItemView {
 		container.empty();
 		container.createEl("p", { text: "Thinking..." });
 
-		// diversify the original prompt
-		const queries = await this.generateDiversifyQueryResponse(prompt);
+		// diversify the prompt + route request
+		const [queries, route] = await Promise.all([
+			this.generateDiversifyQueryResponse(prompt),
+			this.generateRouterResponse(prompt)
+		]);
 		queries.push(prompt);
 
 		// lookup queries (including original prompt) in vector db
@@ -96,9 +105,6 @@ export class QuizView extends ItemView {
 			.map(doc => `${doc} (Score: ${(100 * (scoreMap.get(doc) || 0)).toFixed(3)})`);
 		console.log("RERANKED_DOCUMENTS", ragDocuments);
 		const ragContent = ragDocuments.join("\n");
-
-		// route request to either generate text or quiz response
-		const route = await this.generateRouterResponse(prompt);
 
 		if (route === "quiz") {
 			container.empty();
