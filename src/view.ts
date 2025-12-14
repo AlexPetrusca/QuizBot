@@ -40,6 +40,11 @@ export class QuizView extends ItemView {
 		const quizHeader = topContainer.createEl("div", { cls: "quiz-header" });
 		const outputBody = middleContainer.createEl("div", { cls: "output-body" });
 		const promptInput = bottomContainer.createEl("textarea", { cls: "prompt-input" });
+		this.registerDomEvent(promptInput, 'input', () => {
+			promptInput.style.height = 'auto'; // collapse
+			promptInput.style.height = (promptInput.scrollHeight + 2) + 'px'; // set to max height
+			promptInput.scrollTop = promptInput.scrollHeight; // scroll to bottom
+		});
 		this.registerDomEvent(promptInput, 'keydown', async (e) => {
 			if (!e.shiftKey && e.key === "Enter") {
 				e.preventDefault();
