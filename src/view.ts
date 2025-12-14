@@ -71,7 +71,7 @@ export class QuizView extends ItemView {
 
 		// lookup queries (including original prompt) in vector db
 		const queryResults = await queryCollection("alpine-vault", queries);
-		console.log("CHROMA_LOOKUP: ", queryResults);
+		console.log("CHROMA_DOCUMENTS: ", queryResults);
 
 		// aggregate and rerank query results (Reciprocal Rank Fusion)
 		const scoreMap = new Map<string, number>();
@@ -86,8 +86,9 @@ export class QuizView extends ItemView {
 			}
 		}
 
-		const ragDocuments = Array.from(scoreMap.keys());
-		ragDocuments.sort((a, b) => (scoreMap.get(b) as number) - (scoreMap.get(a) as number));
+		const ragDocuments = Array.from(scoreMap.keys())
+			.sort((a, b) => (scoreMap.get(b) as number) - (scoreMap.get(a) as number))
+			.map(doc => `${doc} (Score: ${(100 * (scoreMap.get(doc) || 0)).toFixed(3)})`);
 		console.log("RERANKED_DOCUMENTS", ragDocuments);
 		const ragContent = ragDocuments.join("\n");
 
@@ -144,7 +145,7 @@ export class QuizView extends ItemView {
 			stream: false,
 		};
 		const chatResponse = await ollama.generate(request);
-		console.log("GENERATE: ", chatResponse);
+		console.log("GENERATE: ", chatResponse.response);
 		return chatResponse.response;
 	}
 
