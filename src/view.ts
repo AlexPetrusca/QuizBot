@@ -338,7 +338,8 @@ export class QuizView extends ItemView {
 			If the information is nonsensical, ignore it.
 			If the information is not relevant to the prompt, ignore it.
 			Don't mention the fact that you are using additional information in your response.
-			As far as the user is concerned, you have never seen the additional information. 			
+			As far as the user is concerned, you have never seen the additional information. 
+			Use LaTeX syntax (e.g. $[math goes here]$ or $$\n[math goes here]\n$$) when writing any math.
 		`;
 	}
 
