@@ -3,7 +3,13 @@ import QuizBotPlugin from "main";
 import { Ollama } from "ollama";
 import { OllamaGenerateRequest } from "src/util/types";
 import { getEditorContent, getEditorSelection, getMarkdownFiles, getSelectedFilesContent, getVaultPath } from "./util/obsidian";
-import { batchAddChunks, recreateCollection, getChunksFromFiles, getOrCreateCollection } from "./util/chroma";
+import {
+	batchAddChunks,
+	recreateCollection,
+	getChunksFromFiles,
+	getOrCreateCollection,
+	queryCollection
+} from "./util/chroma";
 import { latexMarkdownToHTML } from "./util/markdown";
 
 export const QUIZ_VIEW_TYPE = "quiz-view";
@@ -65,20 +71,50 @@ export class QuizView extends ItemView {
 		container.empty();
 		container.createEl("p", { text: "Thinking..." });
 
-		const alpineCollection = await getOrCreateCollection("alpine-vault");
-		const queryResults = await alpineCollection.query({
-			queryTexts: [prompt],
-			nResults: 5,
-			include: ["documents", "metadatas", "distances"]
-		});
+		// diversify the original prompt
+		const queries = await this.generateDiversifyQueryResponse(prompt);
+		queries.push(prompt);
+
+		// lookup queries (including original prompt) in vector db
+		const queryResults = await queryCollection("alpine-vault", queries);
 		console.log(queryResults);
 
-		const uris = new Set<string>();
-		for (const metadata of queryResults.metadatas[0]) {
-			uris.add(<string>(metadata?.uri));
-		}
-		console.log(uris);
+		// aggregate and rerank query results (Reciprocal Rank Fusion)
+		const scoreMap = new Map<string, number>();
+		const k = 60;
+		for (const documents of queryResults.documents) {
+			for (let i = 0; i < documents.length; i++) {
+				const document = documents[i];
+				if (document === null) continue;
 
+				const score = scoreMap.get(document) || 0;
+				scoreMap.set(document, score + 1 / (i + k));
+			}
+		}
+
+		const ragDocuments = Array.from(scoreMap.keys());
+		ragDocuments.sort((a, b) => (scoreMap.get(b) as number) - (scoreMap.get(a) as number));
+		console.log(ragDocuments);
+		const ragContent = ragDocuments.join("\n");
+
+		// route request to either generate text or quiz response
+		const route = await this.generateRouterResponse(prompt);
+
+		if (route === "quiz") {
+			container.empty();
+			container.createEl("p", { text: "Generating quiz..." });
+
+			await this.generateQuiz(container, ragContent);
+		} else if (route === "generate") {
+			container.empty();
+			container.createEl("p", { text: "Generating response..." });
+
+			const rawResponse = await this.generateLLMResponse(prompt, ragContent);
+			container.innerHTML = await latexMarkdownToHTML(rawResponse);
+		}
+	}
+
+	async generateRouterResponse(prompt: string): Promise<string> {
 		const ollama = new Ollama({ host: "localhost:58081" })
 		const request: OllamaGenerateRequest = {
 			model: this.plugin.settings.ollamaModel,
@@ -89,18 +125,21 @@ export class QuizView extends ItemView {
 		const response = await ollama.generate(request)
 		const route = response.response.replace(/"/g, "").trim(); // remove quotes
 		console.log("ROUTE: ", route);
+		return route;
+	}
 
-		const rags = queryResults.documents[0].join("\n");
-		if (route === "quiz") {
-			container.empty();
-			container.createEl("p", { text: "Generating quiz..." });
-			await this.generateQuiz(container, rags);
-		} else if (route === "generate") {
-			container.empty();
-			container.createEl("p", { text: "Generating response..." });
-			const rawResponse = await this.generateLLMResponse(prompt, rags);
-			container.innerHTML = await latexMarkdownToHTML(rawResponse);
-		}
+	async generateDiversifyQueryResponse(prompt: string): Promise<string[]> {
+		const ollama = new Ollama({ host: "localhost:58081" })
+		const request: OllamaGenerateRequest = {
+			model: this.plugin.settings.ollamaModel,
+			prompt: this.getJsonSchemaPromptDiversifier(prompt),
+			format: this.getJsonSchemaDiversifier(),
+			stream: false,
+		};
+		const chatResponse = await ollama.generate(request);
+		const diversifiedQueries = JSON.parse(chatResponse.response);
+		console.log("DIVERSIFY: ", diversifiedQueries);
+		return diversifiedQueries;
 	}
 
 	async generateLLMResponse(prompt: string, rags: string): Promise<string> {
@@ -111,7 +150,7 @@ export class QuizView extends ItemView {
 			stream: false,
 		};
 		const chatResponse = await ollama.generate(request);
-		console.log(chatResponse);
+		console.log("GENERATE: ", chatResponse);
 		return chatResponse.response;
 	}
 
@@ -126,7 +165,7 @@ export class QuizView extends ItemView {
 
 	async generateQuiz(container: Element, content?: string) {
 		if (!content) {
-			content = await this.fetchContentForQuiz();
+			content = await this.fetchQuizContentFromEditor();
 		}
 
 		container.empty();
@@ -234,7 +273,7 @@ export class QuizView extends ItemView {
 		});
 	}
 
-	private async fetchContentForQuiz(): Promise<string> {
+	private async fetchQuizContentFromEditor(): Promise<string> {
 		let content = null;
 
 		// try navbar file selections
@@ -291,14 +330,18 @@ export class QuizView extends ItemView {
 
 	private getPromptGenerate(content: string, rags: string) {
 		return `
+			Prompt:
 			${content}
 			
 			Additional Information:
 			${rags}
 			
+			You are a helpful assistant that answers prompts based on its preexisting knowledge and additional information passed to it. 
+			
 			You can use your own knowledge in addition to the additional information to respond.
 			Only use additional information that relates directly to the provided prompt in your response.
 			If the information is nonsensical, ignore it.
+			If the information is not relevant to the prompt, ignore it.
 			Don't mention the fact that you are using additional information in your response.
 			As far as the user is concerned, you have never seen the additional information. 			
 		`;
@@ -308,17 +351,43 @@ export class QuizView extends ItemView {
 		return {
 			"type": "string",
 			"enum": ["generate", "quiz"]
-		}
+		};
 	}
 
 	private getJsonSchemaPromptRouter(content: string) {
 		return `
+			Prompt:
 			${content}
 			
 			For the preceding prompt, determine whether to output "generate" or "quiz".
 				- Output "quiz" if the prompt is asking to generate a multiple choice quiz.
 				- Output "generate" if the prompt is not asking to generate a quiz.
 			
+			Do not include any explanations or additional text.
+		`;
+	}
+
+	private getJsonSchemaDiversifier() {
+		return {
+			"type": "array",
+			"items": {
+				"type": "string"
+			},
+			"minItems": 5,
+			"maxItems": 5
+		}
+	}
+
+	private getJsonSchemaPromptDiversifier(content: string) {
+		return `
+			Prompt:
+			${content}
+		
+			You are a helpful assistant that generates multiple search queries based on a single input query.
+			For the preceding prompt, generate 5 search queries that are related to it.
+			
+			Ensure that your queries will map roughly to the same retrievals from a RAG system.
+			If the original prompt is personal, ensure that your queries are also personal.
 			Do not include any explanations or additional text.
 		`;
 	}
@@ -360,11 +429,12 @@ export class QuizView extends ItemView {
 				}
 			},
 			"required": ["questions"]
-		}
+		};
 	}
 
 	private getJsonSchemaPromptMain(content: string) {
 		return `
+			Prompt:
 			${content}
 			
 			Create a multiple choice quiz based on the preceding content.
@@ -380,6 +450,7 @@ export class QuizView extends ItemView {
 
 	private getStandalonePromptMain(content: string) {
 		return `
+			Prompt:
 			${content}
 			
 			Create a 10-question multiple choice quiz based on the preceding content.

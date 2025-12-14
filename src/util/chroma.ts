@@ -1,7 +1,7 @@
-import { MarkdownTextSplitter, RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { MarkdownTextSplitter } from "@langchain/textsplitters";
 import { sha256Text, uuid } from "./crypto";
 import * as fs from "fs/promises";
-import { ChromaClient, Collection, Metadata } from "chromadb";
+import { ChromaClient, Collection, Metadata, QueryResult } from "chromadb";
 import { OllamaEmbeddingFunction } from "@chroma-core/ollama";
 
 interface Chunk {
@@ -94,4 +94,13 @@ export async function recreateCollection(collectionName: string): Promise<Collec
 		embedding_dim: 768,
 	};
 	return await chromaClient.getOrCreateCollection(collectionId);
+}
+
+export async function queryCollection(collectionName: string, queries: string[], nResults = 5): Promise<QueryResult> {
+	const alpineCollection = await getOrCreateCollection(collectionName);
+	return await alpineCollection.query({
+		queryTexts: queries,
+		nResults: nResults,
+		include: ["documents", "metadatas", "distances"]
+	});
 }

@@ -47,7 +47,11 @@
 		padding-left: 2em;
 
 		li {
-			padding: 0.075em 0
+			padding: 0.15em 0;
+
+			p {
+				margin: 0;
+			}
 		}
 	}
 
