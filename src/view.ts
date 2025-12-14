@@ -1,15 +1,9 @@
 import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
 import QuizBotPlugin from "main";
 import { Ollama } from "ollama";
-import { OllamaChatRequest, OllamaGenerateRequest } from "src/util/types";
+import { OllamaGenerateRequest } from "src/util/types";
 import { getEditorContent, getEditorSelection, getMarkdownFiles, getVaultPath } from "./util/obsidian";
-import {
-	batchAddChunks,
-	recreateCollection,
-	deleteCollection,
-	getChunksFromFiles,
-	getOrCreateCollection
-} from "./util/chroma";
+import { batchAddChunks, recreateCollection, getChunksFromFiles, getOrCreateCollection } from "./util/chroma";
 import { latexMarkdownToHTML } from "./util/markdown";
 
 export const QUIZ_VIEW_TYPE = "quiz-view";
