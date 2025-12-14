@@ -68,10 +68,10 @@
 		svg {
 			width: 100%;
 		}
+	}
 
-		mjx-assistive-mml {
-			display: none;
-		}
+	mjx-assistive-mml {
+		display: none;
 	}
 }
 
