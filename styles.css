@@ -52,6 +52,10 @@
 			p {
 				margin: 0;
 			}
+
+			.math-block {
+				margin: 1em 0;
+			}
 		}
 	}
 
@@ -60,8 +64,14 @@
 		padding-left: 1.5em;
 	}
 
-	.math-block svg {
-		width: 100%;
+	.math-block {
+		svg {
+			width: 100%;
+		}
+
+		mjx-assistive-mml {
+			display: none;
+		}
 	}
 }
 
