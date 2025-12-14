@@ -323,7 +323,7 @@ export class QuizView extends ItemView {
 		const questionCount = this.plugin.settings.questionCount;
 		const choiceCount = this.plugin.settings.choiceCount;
 
-		const choicesPropertiesSchema: any = {};
+		const choicesPropertiesSchema: Record<string, { type: string }> = {};
 		const choicesEnumSchema = [];
 		for (let i = 1; i <= choiceCount; i++) {
 			choicesPropertiesSchema[`${i}`] = { "type": "string" };
