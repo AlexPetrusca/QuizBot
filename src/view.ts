@@ -3,13 +3,7 @@ import QuizBotPlugin from "main";
 import { Ollama } from "ollama";
 import { OllamaGenerateRequest } from "src/util/types";
 import { getEditorContent, getEditorSelection, getMarkdownFiles, getSelectedFilesContent, getVaultPath } from "./util/obsidian";
-import {
-	batchAddChunks,
-	recreateCollection,
-	getChunksFromFiles,
-	getOrCreateCollection,
-	queryCollection
-} from "./util/chroma";
+import { batchAddChunks, recreateCollection, getChunksFromFiles, queryCollection } from "./util/chroma";
 import { latexMarkdownToHTML } from "./util/markdown";
 
 export const QUIZ_VIEW_TYPE = "quiz-view";
@@ -77,7 +71,7 @@ export class QuizView extends ItemView {
 
 		// lookup queries (including original prompt) in vector db
 		const queryResults = await queryCollection("alpine-vault", queries);
-		console.log(queryResults);
+		console.log("CHROMA_LOOKUP: ", queryResults);
 
 		// aggregate and rerank query results (Reciprocal Rank Fusion)
 		const scoreMap = new Map<string, number>();
@@ -94,7 +88,7 @@ export class QuizView extends ItemView {
 
 		const ragDocuments = Array.from(scoreMap.keys());
 		ragDocuments.sort((a, b) => (scoreMap.get(b) as number) - (scoreMap.get(a) as number));
-		console.log(ragDocuments);
+		console.log("RERANKED_DOCUMENTS", ragDocuments);
 		const ragContent = ragDocuments.join("\n");
 
 		// route request to either generate text or quiz response
