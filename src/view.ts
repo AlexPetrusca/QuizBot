@@ -447,6 +447,7 @@ export class QuizView extends ItemView {
 			Create a multiple choice quiz based on the preceding content.
 			Each question should have one correct answer and the rest should be distractors.
 			Make sure the questions are clear and concise, and that the choices are plausible.
+			Ensure that all questions are distinct and that all choices for a given question are distinct.
 			Do not include any explanations or additional text.
 			
 			You can use your own knowledge in addition to the additional information.
